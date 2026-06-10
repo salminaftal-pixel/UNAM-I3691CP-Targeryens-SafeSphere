@@ -1,1 +1,19 @@
+node_modules/
+.expo/
+dist/
+web-build/
+ios/
+android/
 
+# Local logs and machine-specific environment files.
+*.log
+.env
+.env*.local
+
+# Local credentials should be managed by EAS credentials instead.
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
