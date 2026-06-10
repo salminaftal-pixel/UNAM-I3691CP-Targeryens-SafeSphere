@@ -1,1 +1,63 @@
+import { getApp, getApps, initializeApp } from 'firebase/app';
+import { initializeAuth, getAuth, getReactNativePersistence } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+
+const extra = Constants?.manifest?.extra || Constants?.expoConfig?.extra || {};
+export const firebaseConfig = {
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || extra.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || extra.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || extra.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || extra.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || extra.EXPO_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID || extra.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
+};
+
+const requiredFirebaseConfigKeys = [
+  'apiKey',
+  'authDomain',
+  'projectId',
+  'messagingSenderId',
+  'appId',
+];
+
+export const missingFirebaseConfigKeys = requiredFirebaseConfigKeys.filter((key) => !firebaseConfig[key]);
+export const isFirebaseConfigured = missingFirebaseConfigKeys.length === 0;
+
+const app = isFirebaseConfigured ? (getApps().length ? getApp() : initializeApp(firebaseConfig)) : null;
+
+const isReactNative = Platform.OS !== 'web';
+let reactNativePersistence;
+if (isReactNative) {
+  try {
+    const storageModule = require('@react-native-async-storage/async-storage');
+    const storage = storageModule.default || storageModule;
+    const appStorage = storage.createAsyncStorage
+      ? storage.createAsyncStorage('app')
+      : storage;
+    reactNativePersistence = getReactNativePersistence(appStorage);
+  } catch (error) {
+    reactNativePersistence = undefined;
+  }
+}
+
+function createFirebaseAuth() {
+  if (!app) {
+    return null;
+  }
+
+  if (isReactNative && reactNativePersistence) {
+    try {
+      return initializeAuth(app, { persistence: reactNativePersistence });
+    } catch (error) {
+      return getAuth(app);
+    }
+  }
+
+  return getAuth(app);
+}
+
+export const firebaseAuth = createFirebaseAuth();
+export const firestore = app ? getFirestore(app) : null;
 
