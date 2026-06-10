@@ -1,1 +1,23 @@
+const colors = {
+  background: '#fffaf7',
+  surface: '#ffffff',
+  surfaceWarm: '#fff7ec',
+  ink: '#171827',
+  muted: '#667085',
+  border: '#eadfd5',
+  navy: '#0e1830',
+  rust: '#8f2d13',
+  orange: '#ff5a14',
+  red: '#e70813',
+  amber: '#c46d28',
+  green: '#1fbf84',
+  mint: '#ecfff5',
+  blue: '#2680c2',
+  sky: '#edf7ff',
+  violet: '#a855f7',
+  blush: '#fff0f3',
+  warning: '#f4cf45',
+  shadow: '#000000',
+};
 
+export default colors;
