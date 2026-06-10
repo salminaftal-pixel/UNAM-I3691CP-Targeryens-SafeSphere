@@ -1,1 +1,189 @@
+import { collection, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore';
+import * as Print from 'expo-print';
+import { Image } from 'react-native';
+import { firestore } from './firebase';
+import { FIRESTORE_COLLECTIONS, FIRESTORE_SUBCOLLECTIONS } from './firestoreCollections';
+
+const certificateLogo = require('../../assets/Copilot_20260608_111229 (1).png');
+
+function requireFirestore() {
+  if (!firestore) {
+    throw new Error('Firebase is not configured. Please provide Expo Firebase environment variables.');
+  }
+}
+
+function escapeHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function getCertificateLogoUri() {
+  return Image.resolveAssetSource(certificateLogo)?.uri || '';
+}
+
+export async function recordQuizAttempt(uid, courseId, score = 100) {
+  requireFirestore();
+  if (!uid) {
+    throw new Error('Missing user UID for quiz attempt record.');
+  }
+
+  const attemptsRoot = doc(firestore, FIRESTORE_COLLECTIONS.quizAttempts, uid);
+  await setDoc(
+    attemptsRoot,
+    {
+      uid,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  const attemptsCollection = collection(attemptsRoot, FIRESTORE_SUBCOLLECTIONS.quizAttempts);
+  const attemptDoc = doc(attemptsCollection, courseId);
+  await setDoc(
+    attemptDoc,
+    {
+      courseId,
+      score,
+      status: 'completed',
+      completedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+export async function recordCertificate(uid, course, user) {
+  requireFirestore();
+  if (!uid) {
+    throw new Error('Missing user UID for certificate record.');
+  }
+
+  const certificateRoot = doc(firestore, FIRESTORE_COLLECTIONS.certificates, uid);
+  await setDoc(
+    certificateRoot,
+    {
+      uid,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  const itemsCollection = collection(certificateRoot, FIRESTORE_SUBCOLLECTIONS.certificates);
+  const certificateDoc = doc(itemsCollection, course.id);
+  await setDoc(
+    certificateDoc,
+    {
+      courseId: course.id,
+      title: course.title,
+      earnedAt: serverTimestamp(),
+      userName: user.fullName || user.username || user.email,
+      username: user.username || '',
+    },
+    { merge: true }
+  );
+}
+
+export async function fetchCertificates(uid) {
+  requireFirestore();
+  if (!uid) {
+    throw new Error('Missing user UID for certificate history lookup.');
+  }
+
+  const certificateRoot = doc(firestore, FIRESTORE_COLLECTIONS.certificates, uid);
+  const itemsCollection = collection(certificateRoot, FIRESTORE_SUBCOLLECTIONS.certificates);
+  const snapshot = await getDocs(itemsCollection);
+
+  return snapshot.docs
+    .map((item) => {
+      const data = item.data();
+      return {
+        courseId: item.id,
+        ...data,
+        earnedAtFormatted: data.earnedAt ? new Date(data.earnedAt.toMillis()).toLocaleDateString() : 'Unknown',
+      };
+    })
+    .sort((left, right) => {
+      const leftTime = left.earnedAt ? left.earnedAt.toMillis() : 0;
+      const rightTime = right.earnedAt ? right.earnedAt.toMillis() : 0;
+      return rightTime - leftTime;
+    });
+}
+
+export function buildCertificateHtml(course, user) {
+  const logoUri = getCertificateLogoUri();
+  const name = escapeHtml(user.fullName || user.username || 'Learner');
+  const courseTitle = escapeHtml(course.title || 'Safety Training Course');
+  const date = new Date().toLocaleDateString();
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Safe Sphere Certificate</title>
+    <style>
+      @page { margin: 0; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { font-family: Arial, sans-serif; background: #071124; color: #fff7ec; margin: 0; padding: 28px; }
+      .container { max-width: 860px; margin: 0 auto; padding: 14px; background: #ff5a14; border: 8px solid #071124; }
+      .inner { position: relative; padding: 44px; background: #0e1830; border: 3px solid #fff7ec; overflow: hidden; box-shadow: inset 0 0 0 8px rgba(255, 90, 20, 0.2); }
+      .inner:before, .inner:after { content: ""; position: absolute; width: 230px; height: 230px; border: 24px solid rgba(255, 90, 20, 0.24); transform: rotate(45deg); }
+      .inner:before { top: -145px; left: -145px; }
+      .inner:after { right: -145px; bottom: -145px; }
+      .top-band { position: absolute; top: 0; left: 0; right: 0; height: 18px; background: #ff5a14; }
+      .bottom-band { position: absolute; bottom: 0; left: 0; right: 0; height: 18px; background: #ff5a14; }
+      .header { position: relative; text-align: center; margin-bottom: 32px; }
+      .logo-wrap { width: 112px; height: 112px; margin: 0 auto 18px; border: 5px solid #ff5a14; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: #fffaf7; overflow: hidden; box-shadow: 0 0 0 7px #fff7ec; }
+      .logo { width: 92px; height: 92px; object-fit: contain; }
+      .brand { color: #ff5a14; font-size: 14px; font-weight: 900; letter-spacing: 0.18em; margin-bottom: 12px; text-transform: uppercase; }
+      .title { color: #fff7ec; font-size: 40px; font-weight: 900; margin-bottom: 10px; }
+      .subtitle { color: #f3d6c9; font-size: 16px; margin-bottom: 26px; }
+      .rule { width: 180px; height: 5px; margin: 0 auto 28px; background: #ff5a14; border-radius: 999px; }
+      .content { position: relative; text-align: center; font-size: 18px; line-height: 1.8; }
+      .presented { color: #f3d6c9; text-transform: uppercase; font-size: 12px; font-weight: 900; letter-spacing: 0.14em; }
+      .name { color: #ffffff; font-size: 34px; font-weight: 900; margin: 14px 0; }
+      .course { color: #ff5a14; font-size: 28px; font-weight: 900; margin: 14px auto 18px; max-width: 680px; line-height: 1.25; }
+      .date { color: #fff7ec; font-weight: 800; margin-top: 12px; }
+      .footer { position: relative; margin-top: 44px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 14px; color: #f3d6c9; border-top: 2px solid rgba(255, 90, 20, 0.55); padding-top: 22px; }
+      .issuer { color: #ffffff; font-weight: 900; }
+      .seal { padding: 13px 18px; border: 3px solid #ff5a14; border-radius: 999px; color: #ffffff; font-weight: 900; letter-spacing: 0.08em; background: rgba(255, 90, 20, 0.28); }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="inner">
+        <div class="top-band"></div>
+        <div class="bottom-band"></div>
+        <div class="header">
+          ${logoUri ? `<div class="logo-wrap"><img class="logo" src="${logoUri}" alt="Safe Sphere logo" /></div>` : ''}
+          <div class="brand">Safe Sphere</div>
+          <div class="title">Certificate of Completion</div>
+          <div class="subtitle">This certificate confirms successful completion of safety training.</div>
+          <div class="rule"></div>
+        </div>
+        <div class="content">
+          <div class="presented">Presented to</div>
+          <div class="name">${name}</div>
+          <div>for successfully completing</div>
+          <div class="course">${courseTitle}</div>
+          <div class="date">Issued on ${date}</div>
+        </div>
+        <div class="footer">
+          <div>
+            <div class="issuer">Issued by Safe Sphere</div>
+            <div>Industrial Safety Training Platform</div>
+          </div>
+          <div class="seal">VERIFIED</div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>`;
+}
+
+export async function printCertificate(course, user) {
+  const html = buildCertificateHtml(course, user);
+  await Print.printAsync({ html });
+}
 
