@@ -1,1 +1,194 @@
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Button from '../../components/common/Button';
+import Card from '../../components/common/Card';
+import Header from '../../components/common/Header';
+import colors from '../../styles/colors';
 
+function TabBar({ tabs, active, onChange }) {
+  return (
+    <View style={styles.tabs}>
+      {tabs.map((tab) => (
+        <Pressable key={tab.id} onPress={() => onChange(tab.id)} style={[styles.tab, active === tab.id && styles.activeTab]}>
+          <Text style={[styles.tabText, active === tab.id && styles.activeTabText]}>{tab.title}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function BulletList({ items, marker = '-' }) {
+  return items.map((item, index) => (
+    <Text key={`${index}-${item}`} style={styles.bullet}>
+      {marker} {item}
+    </Text>
+  ));
+}
+
+function ContactList({ contacts }) {
+  if (!Array.isArray(contacts) || contacts.length === 0) {
+    return null;
+  }
+
+  return (
+    <Card style={styles.fullCard}>
+      <Text style={styles.cardTitle}>Emergency Contact Numbers</Text>
+      <View style={styles.contactBox}>
+        {contacts.map((contact, index) => (
+          <Text key={`${index}-${contact.label}-${contact.value}`} style={styles.contactLine}>
+            <Text style={styles.contactStrong}>{contact.label}:</Text> {contact.value}
+          </Text>
+        ))}
+      </View>
+    </Card>
+  );
+}
+
+export default function SafetyTipsScreen({ navigation, training }) {
+  const [activeTab, setActiveTab] = useState('');
+  const tips = training?.safetyTips || [];
+  const tabs = tips.map((tip) => ({ id: tip.id, title: tip.title }));
+  const activeTip = tips.find((tip) => tip.id === activeTab) || tips[0];
+
+  useEffect(() => {
+    if (tips.length > 0 && !tips.some((tip) => tip.id === activeTab)) {
+      setActiveTab(tips[0].id);
+    }
+  }, [activeTab, tips]);
+
+  const marker = activeTip?.title === 'Common Hazards' ? '!' : '-';
+
+  return (
+    <View style={styles.screen}>
+      <Header
+        title="Safety Tips & Resources"
+        subtitle="Essential safety information for industrial environments"
+        backLabel="Back to Dashboard"
+        onBack={() => navigation.goBack()}
+      />
+      <ScrollView contentContainerStyle={styles.content}>
+        {training?.trainingError ? (
+          <Card style={styles.fullCard}>
+            <Text style={styles.cardTitle}>Safety tips could not load</Text>
+            <Text style={styles.muted}>{training.trainingError}</Text>
+            <Button title="Retry" onPress={training.reloadTraining} variant="secondary" style={styles.retryButton} />
+          </Card>
+        ) : !training?.trainingLoaded ? (
+          <Card style={styles.fullCard}>
+            <ActivityIndicator color={colors.orange} />
+            <Text style={styles.mutedCentered}>Loading safety tips from Firebase...</Text>
+          </Card>
+        ) : tips.length === 0 ? (
+          <Card style={styles.fullCard}>
+            <Text style={styles.cardTitle}>No safety tips found</Text>
+            <Text style={styles.muted}>Seed the Firestore safetyTips collection, then retry.</Text>
+            <Button title="Retry" onPress={training.reloadTraining} variant="secondary" style={styles.retryButton} />
+          </Card>
+        ) : (
+          <>
+            <TabBar tabs={tabs} active={activeTip?.id} onChange={setActiveTab} />
+            <View style={styles.twoColumn}>
+              {(activeTip.sections || []).map((section, index) => (
+                <Card key={`${activeTip.id}-${index}-${section.title}`} style={styles.flexCard}>
+                  <Text style={styles.cardTitle}>{section.title}</Text>
+                  <BulletList items={section.items || []} marker={marker} />
+                </Card>
+              ))}
+            </View>
+            <ContactList contacts={activeTip.contacts} />
+          </>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 42,
+  },
+  tabs: {
+    flexDirection: 'row',
+    backgroundColor: '#f0eef1',
+    borderRadius: 999,
+    padding: 3,
+    marginBottom: 28,
+  },
+  tab: {
+    flex: 1,
+    minHeight: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+    paddingHorizontal: 4,
+  },
+  activeTab: {
+    backgroundColor: colors.surface,
+  },
+  tabText: {
+    color: colors.ink,
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  activeTabText: {
+    fontWeight: '900',
+  },
+  fullCard: {
+    marginBottom: 18,
+  },
+  cardTitle: {
+    color: colors.ink,
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 10,
+  },
+  muted: {
+    color: colors.muted,
+    marginBottom: 14,
+    lineHeight: 20,
+  },
+  mutedCentered: {
+    color: colors.muted,
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  twoColumn: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  flexCard: {
+    flexGrow: 1,
+    flexBasis: 330,
+    marginBottom: 16,
+  },
+  bullet: {
+    color: colors.ink,
+    lineHeight: 24,
+    fontSize: 13,
+  },
+  contactBox: {
+    borderWidth: 2,
+    borderColor: '#dc3f59',
+    backgroundColor: '#ffe4dd',
+    borderRadius: 6,
+    padding: 20,
+  },
+  contactLine: {
+    color: colors.ink,
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  contactStrong: {
+    fontWeight: '900',
+  },
+  retryButton: {
+    alignSelf: 'flex-start',
+  },
+});
