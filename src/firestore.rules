@@ -1,0 +1,176 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function hasOnly(keys) {
+      return request.resource.data.keys().hasOnly(keys);
+    }
+
+    function validUserProfile(uid) {
+      return hasOnly([
+          'uid',
+          'fullName',
+          'username',
+          'email',
+          'initials',
+          'photoURL',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.uid == uid
+        && request.resource.data.fullName is string
+        && request.resource.data.fullName.size() >= 2
+        && request.resource.data.fullName.size() <= 80
+        && request.resource.data.username is string
+        && request.resource.data.username.matches('^[a-z0-9._-]{3,24}$')
+        && request.resource.data.email is string
+        && request.resource.data.initials is string
+        && request.resource.data.initials.size() >= 1
+        && request.resource.data.initials.size() <= 3
+        && request.resource.data.photoURL is string
+        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp);
+    }
+
+    function validUsernameIndex(username) {
+      return hasOnly(['uid', 'username', 'email', 'createdAt'])
+        && request.resource.data.username == username
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email is string
+        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp);
+    }
+
+    function validCourseProgress(uid) {
+      return hasOnly(['uid', 'updatedAt', 'courses'])
+        && request.resource.data.uid == uid
+        && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['courses']) || request.resource.data.courses is map);
+    }
+
+    function validQuizAttemptRoot(uid) {
+      return hasOnly(['uid', 'updatedAt'])
+        && request.resource.data.uid == uid
+        && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp);
+    }
+
+    function validQuizAttempt(attemptId) {
+      return hasOnly(['courseId', 'score', 'status', 'completedAt'])
+        && request.resource.data.courseId == attemptId
+        && request.resource.data.score is number
+        && request.resource.data.score >= 0
+        && request.resource.data.score <= 100
+        && request.resource.data.status == 'completed'
+        && (!request.resource.data.keys().hasAny(['completedAt']) || request.resource.data.completedAt is timestamp);
+    }
+
+    function validCertificateRoot(uid) {
+      return hasOnly(['uid', 'updatedAt'])
+        && request.resource.data.uid == uid
+        && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp);
+    }
+
+    function validCertificate(certificateId) {
+      return hasOnly(['courseId', 'title', 'earnedAt', 'userName', 'username'])
+        && request.resource.data.courseId == certificateId
+        && request.resource.data.title is string
+        && request.resource.data.userName is string
+        && request.resource.data.username is string
+        && (!request.resource.data.keys().hasAny(['earnedAt']) || request.resource.data.earnedAt is timestamp);
+    }
+
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow create: if isOwner(uid) && validUserProfile(uid);
+      allow update: if isOwner(uid)
+        && validUserProfile(uid)
+        && request.resource.data.username == resource.data.username
+        && request.resource.data.email == resource.data.email
+        && (request.resource.data.createdAt == resource.data.createdAt || !request.resource.data.keys().hasAny(['createdAt']));
+      allow delete: if isOwner(uid) && resource.data.uid == uid;
+    }
+
+    match /usernameIndex/{username} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if signedIn()
+        && !exists(/databases/$(database)/documents/usernameIndex/$(username))
+        && validUsernameIndex(username);
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    match /courseProgress/{uid} {
+      allow get: if isOwner(uid);
+      allow create, update: if isOwner(uid) && validCourseProgress(uid);
+      allow delete: if isOwner(uid) && resource.data.uid == uid;
+
+      match /courses/{courseId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && request.resource.data.keys().hasOnly([
+            'courseId',
+            'progress',
+            'completedLessons',
+            'completedLessonIds',
+            'lastLessonId',
+            'status',
+            'updatedAt'
+          ])
+          && request.resource.data.courseId == courseId
+          && request.resource.data.progress is number
+          && request.resource.data.progress >= 0
+          && request.resource.data.progress <= 100
+          && request.resource.data.completedLessons is number
+          && request.resource.data.completedLessons >= 0
+          && request.resource.data.status in ['not_started', 'in_progress', 'completed'];
+        allow delete: if false;
+      }
+    }
+
+    match /quizAttempts/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) && validQuizAttemptRoot(uid);
+      allow delete: if isOwner(uid) && resource.data.uid == uid;
+
+      match /attempts/{attemptId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validQuizAttempt(attemptId);
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    match /certificates/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) && validCertificateRoot(uid);
+      allow delete: if isOwner(uid) && resource.data.uid == uid;
+
+      match /items/{certificateId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validCertificate(certificateId);
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    match /courses/{courseId} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.token.admin == true;
+    }
+
+    match /safetyTips/{tipId} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.token.admin == true;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
