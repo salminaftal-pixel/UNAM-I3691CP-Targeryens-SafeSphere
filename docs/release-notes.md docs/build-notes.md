@@ -1,9 +1,7 @@
-
-import { registerRootComponent } from 'expo';
-
-import App from './App';
-
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
-registerRootComponent(App);
+EXPO_PUBLIC_FIREBASE_API_KEY=AIzaSyDAWhrb-f2wu6pNFpnrC_WW3_D4CQdupbw
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=safesphere-59fff.firebaseapp.com
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=safesphere-59fff
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=safesphere-59fff.firebasestorage.app
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=1019505190361
+EXPO_PUBLIC_FIREBASE_APP_ID=1:1019505190361:web:5b259793f8f001246b65c8
+EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=G-2212PX7BSF
